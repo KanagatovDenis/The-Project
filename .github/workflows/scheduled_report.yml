@@ -1,0 +1,108 @@
+name: Scheduled Report Generation
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Каждый понедельник в 8:00 UTC
+  workflow_dispatch:
+    inputs:
+      report_type:
+        description: 'Тип отчета'
+        required: true
+        default: 'weekly'
+        type: choice
+        options:
+          - weekly
+          - detailed
+          - full
+      email_notification:
+        description: 'Отправить email уведомление'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install jupyter nbconvert
+
+    - name: Generate sample data
+      run: python scripts/generate_sample_data.py
+
+    - name: Generate reports
+      id: generate
+      run: |
+        mkdir -p reports
+        python scripts/generate_report.py \
+          --type "${{ inputs.report_type || 'weekly' }}" \
+          --output-dir ./reports \
+          --data-dir ./data
+
+    - name: Upload reports as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: educational-reports
+        path: reports/
+        retention-days: 30
+
+    - name: Auto-commit reports
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add reports/*.html
+        git commit -m "📊 Auto-generated reports $(date +'%Y-%m-%d')" || echo "No changes to commit"
+        git push origin main || echo "Nothing to push"
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: './reports'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
+
+    - name: Send notification
+      if: inputs.email_notification == 'true'
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        username: ${{ secrets.MAIL_USERNAME }}
+        password: ${{ secrets.MAIL_PASSWORD }}
+        subject: '📊 Отчет по успеваемости сгенерирован'
+        body: |
+          Новый отчет успешно сгенерирован и доступен по ссылке:
+          
+          ${{ steps.deployment.outputs.page_url }}
+          
+          Тип отчета: ${{ inputs.report_type || 'weekly' }}
+          Дата генерации: $(date)
+        to: ${{ secrets.REPORT_RECIPIENT }}
+        from: EduViz Dashboard

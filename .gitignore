@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.env
+venv*/
+env*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# Операционные системы
+.DS_Store
+Thumbs.db
+
+# Данные и логи
+*.log
+*.sqlite3
+*.db
+data/raw/temp_*
+
+# Dash/Heroku
+*.pyc
+*.db-journal
+
+# Отчеты и артефакты (кроме шаблонов)
+reports/*.html
+!reports/template.html
+
+# Временные файлы
+temp/
+tmp/
+
+# Файлы настроек
+config.local.py
+secrets.json
